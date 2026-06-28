@@ -238,84 +238,89 @@ def print_results(mode, data):
     print(sep)
 
 # ── Chart (all 3 modes) ───────────────────────────────────────────────────────
-def save_chart(all_data, keys, out_dir):
-    try:
-        import plotly.graph_objects as go
-        import plotly.io as pio
-    except ImportError:
-        print("  plotly not installed — skipping chart. pip install plotly kaleido")
-        return
+def _save_matplotlib_bar_chart(path, title, labels, values, colors, xlabel, ylabel, horizontal=False):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
 
-    pio.templates.default = "plotly_white"
-    font_ax = dict(size=13, color="#28251d")
-    font_t  = dict(size=16, color="#28251d")
+    fig, ax = plt.subplots(figsize=(8.5, 4.2))
+    if horizontal:
+        y_pos = list(range(len(labels)))
+        bars = ax.barh(y_pos, values, color=colors)
+        ax.set_yticks(y_pos, labels=labels)
+        ax.invert_yaxis()
+        for bar, value in zip(bars, values):
+            ax.text(value + max(values) * 0.01 if values else 0, bar.get_y() + bar.get_height() / 2,
+                    f"{value:.2f}", va="center", ha="left", fontsize=9)
+    else:
+        x_pos = list(range(len(labels)))
+        bars = ax.bar(x_pos, values, color=colors)
+        ax.set_xticks(x_pos, labels=labels)
+        for bar, value in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + max(values) * 0.01 if values else 0,
+                    f"{value:.2f}", ha="center", va="bottom", fontsize=9)
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_chart(all_data, keys, out_dir):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     combos = [f"pp{pt}+tg{gt}" for pt, gt in keys]
+    modes = [m for m in ["15W", "25W", "MAXN"] if m in all_data]
+    if not modes:
+        return
 
-    # Chart 1: tok/J measured
-    fig1 = go.Figure()
-    for mode in ["15W", "25W", "MAXN"]:
-        if mode not in all_data:
-            continue
-        vals = [all_data[mode].get(k, {}).get('tokj', 0) for k in keys]
-        fig1.add_bar(name=mode, y=combos, x=vals, orientation='h',
-                     marker_color=COLORS[mode],
-                     text=[f"{v:.2f}" for v in vals],
-                     textposition="outside", cliponaxis=False)
-    fig1.update_layout(
-        title=dict(
-            text="Measured tok/J — Real Energy from tegrastats VDD_CPU_GPU_CV<br>"
-                 "<sup>Bonsai-1.7B Q1_0 · Jetson Orin Nano Super 8GB</sup>",
-            font=font_t, x=0.5, xanchor='center'),
-        barmode="group",
-        legend=dict(orientation='h', yanchor='bottom', y=1.04,
-                    xanchor='center', x=0.5, font=dict(size=13)),
-        xaxis=dict(title="tok/J (measured)", range=[0, 9],
-                   tickfont=font_ax, title_font=font_ax, gridcolor="#e8e8e8"),
-        yaxis=dict(tickfont=dict(size=11, color="#28251d"), autorange="reversed"),
-        plot_bgcolor="white", paper_bgcolor="white",
-        height=560, margin=dict(l=140, r=90, t=110, b=60),
-    )
+    # Chart 1: tok/J measured (grouped bars)
     p1 = out_dir / "tokj_comparison.png"
-    fig1.write_image(str(p1))
+    x_positions = list(range(len(combos)))
+    bar_width = 0.8 / max(1, len(modes))
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(10, 5.4))
+    for idx, mode in enumerate(modes):
+        vals = [all_data[mode].get(k, {}).get('tokj', 0) for k in keys]
+        offsets = [pos + (idx - (len(modes) - 1) / 2) * bar_width for pos in x_positions]
+        bars = ax.bar(offsets, vals, width=bar_width, label=mode, color=COLORS[mode], alpha=0.9)
+        for bar, value in zip(bars, vals):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
+                    f"{value:.2f}", ha="center", va="bottom", fontsize=8)
+
+    ax.set_title("Measured tok/J by Mode")
+    ax.set_xlabel("Prompt/Generation Combo")
+    ax.set_ylabel("tok/J")
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(combos, rotation=20, ha="right")
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(p1, dpi=180, bbox_inches="tight")
+    plt.close(fig)
     print(f"  Chart: {p1}")
 
     # Chart 2: avg GPU power per mode
-    modes    = [m for m in ["15W","25W","MAXN"] if m in all_data]
-    avg_watt = [statistics.mean(v['avg_W'] for v in all_data[m].values()) for m in modes]
-    avg_tokj = [statistics.mean(v['tokj']  for v in all_data[m].values()) for m in modes]
-
-    fig2 = go.Figure()
-    fig2.add_bar(name="Avg GPU W", x=modes, y=avg_watt,
-                 marker_color=[COLORS[m] for m in modes],
-                 text=[f"{v:.2f} W" for v in avg_watt],
-                 textposition="outside", cliponaxis=False)
-    fig2.update_layout(
-        title=dict(
-            text="Avg GPU Power Draw by Mode<br>"
-                 "<sup>VDD_CPU_GPU_CV during inference (W)</sup>",
-            font=font_t, x=0.5, xanchor='center'),
-        xaxis=dict(title="Power Mode",
-                   tickfont=dict(size=14, color="#28251d"), title_font=font_ax),
-        yaxis=dict(title="Avg W", range=[0, max(avg_watt)*1.3],
-                   tickfont=font_ax, title_font=font_ax, gridcolor="#e8e8e8"),
-        plot_bgcolor="white", paper_bgcolor="white",
-        showlegend=False,
-        height=380, margin=dict(l=80, r=60, t=110, b=60),
-    )
     p2 = out_dir / "tokj_avg_power.png"
-    fig2.write_image(str(p2))
+    avg_watt = [statistics.mean(v['avg_W'] for v in all_data[m].values()) for m in modes]
+    _save_matplotlib_bar_chart(p2, "Avg GPU Power Draw by Mode", modes, avg_watt,
+                               [COLORS[m] for m in modes], "Power Mode", "Avg W", horizontal=False)
     print(f"  Chart: {p2}")
 
 # ── Single mode run ───────────────────────────────────────────────────────────
 def run_single(mode, tegra_path, jsonl_path, out_dir):
     print(f"\nProcessing {mode} ...")
     if not Path(tegra_path).exists():
-        print(f"  ERROR: {tegra_path} not found"); return None
+        print(f"  WARNING: {tegra_path} not found; skipping"); return None
     if not Path(jsonl_path).exists():
-        print(f"  ERROR: {jsonl_path} not found"); return None
+        print(f"  WARNING: {jsonl_path} not found; skipping"); return None
 
     tegra   = parse_tegrastats(tegra_path)
     records = load_jsonl(jsonl_path)
