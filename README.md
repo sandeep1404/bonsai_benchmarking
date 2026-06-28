@@ -11,7 +11,7 @@
 - [Setup Guide](#setup-guide)
 - [Running the Benchmark](#running-the-benchmark)
 - [Analysis Scripts](#analysis-scripts)
-- [Results (25W — Bonsai-1.7B Q1_0)](#results-25w--bonsai-17b-q10)
+- [Results and Current Artifacts](#results-and-current-artifacts)
 - [Key Findings](#key-findings)
 - [Formulas & Concepts](#formulas--concepts)
 - [References](#references)
@@ -39,24 +39,27 @@
 ```
 .
 ├── README.md                              # This file
-├── benchmark.py                           # Main benchmark script (llama-server + requests)
-├── compare_modes.py                       # Comparison script for 15W / 25W / MAXN_SUPER
+├── benchmark.py                           # Main benchmark sweep script (llama-server + requests)
+├── calc_tokj.py                           # Aligns tegrastats power samples to each request window and computes tok/J
+├── compare_modes.py                       # Builds 3-mode comparison charts and tables for 15W / 25W / MAXN
+├── tests/
+│   └── test_calc_tokj.py                  # Regression tests for timestamp parsing and PNG export
 ├── bonsai_benchmark_report.md             # Benchmark report and notes
 ├── results/
 │   ├── profile_export_15w_bonsai1.7b.jsonl # Timing data for 15W mode
 │   ├── profile_export_25w_bonsai1.7b.jsonl # Timing data for 25W mode
-│   ├── profile_export_maxn_bonsai1.7b.jsonl # Timing data for MAXN_SUPER mode
-│   ├── tegrastats_25w_bonsai1.7b.txt       # VDD_CPU_GPU_CV power log at 25W
-│   ├── tegrastats_maxn_bonsai1.7b.txt      # VDD_CPU_GPU_CV power log at MAXN_SUPER
-│   ├── bonsai_1.7b_25w_benchmark.png       # Main benchmark results chart
+│   ├── profile_export_maxn_bonsai1.7b.jsonl # Timing data for MAXN mode
+│   ├── tegrastats_25w_bonsai1.7b.txt       # Power log for 25W mode
+│   ├── tegrastats_maxn_bonsai1.7b.txt      # Power log for MAXN mode
 │   ├── compare_tokps.png                  # Throughput comparison chart
-│   ├── compare_tokj.png                   # Energy efficiency comparison chart
+│   ├── compare_tokj.png                   # Efficiency comparison chart
 │   ├── compare_avg_summary.png            # Average throughput summary chart
 │   ├── compare_tokps_vs_prompt.png        # tok/s vs prompt length chart
-│   ├── compare_tokps.html                 # HTML comparison chart for throughput
-│   ├── compare_tokj.html                  # HTML comparison chart for energy efficiency
-│   ├── compare_avg_summary.html           # HTML comparison summary chart
-│   └── compare_tokps_vs_prompt.html       # HTML comparison chart for prompt length
+│   ├── tokj_comparison.png                # tok/J comparison chart from calc_tokj.py
+│   ├── tokj_avg_power.png                 # Avg GPU power chart from calc_tokj.py
+│   ├── tokj_all_modes.csv                 # Merged tok/J table for all modes
+│   ├── tokj_25w.csv                       # 25W tok/J CSV
+│   └── tokj_maxn.csv                      # MAXN tok/J CSV
 ```
 
 ---
@@ -188,7 +191,7 @@ python3 benchmark.py
 
 Edit the top of `benchmark.py` to set the desired mode tag (for example `15w_bonsai1.7b`, `25w_bonsai1.7b`, or `maxn_bonsai1.7b`) before each run. This executes all **12 combinations** (4 prompt lengths × 3 gen lengths) × 20 requests = **240 total requests** and saves a separate JSONL file for that power mode.
 
-### Step 5 — Repeat for Each Power Mode and Compare
+### Step 5 — Repeat for Each Power Mode and Generate the Post-Run Analysis
 
 ```bash
 # Repeat Step 4 for 15W, 25W, and MAXN_SUPER
@@ -198,9 +201,10 @@ Edit the top of `benchmark.py` to set the desired mode tag (for example `15w_bon
 #   results/profile_export_maxn_bonsai1.7b.jsonl
 
 python3 compare_modes.py
+python3 calc_tokj.py --all
 ```
 
-`compare_modes.py` does not run the benchmark itself. It reads the three JSONL files, compares the same prompt/gen combinations across the three power modes, and writes the summary charts and tables to `results/`.
+`compare_modes.py` reads the three JSONL files and writes the throughput/latency/efficiency comparison charts to `results/`. `calc_tokj.py --all` aligns the `tegrastats` power trace against each request window and writes CSV/PNG outputs such as `results/tokj_all_modes.csv`, `results/tokj_comparison.png`, and `results/tokj_avg_power.png`.
 
 ---
 
@@ -210,22 +214,22 @@ python3 compare_modes.py
 
 Orchestrates the full benchmark sweep using `llama-server`'s HTTP API.
 
-```
-Arguments (edit top of file):
-  SERVER          = "http://localhost:8080"
-  PROMPT_TOKENS   = [256, 512, 1024, 2048]
-  GEN_TOKENS      = [128, 256, 512]
-  NUM_REQUESTS    = 20
-  OUTPUT_FILE     = "results/profile_export_25w_bonsai1.7b.jsonl"
+```python
+# Edit these values at the top of benchmark.py
+SERVER = "http://localhost:8080"
+PROMPT_TOKENS = [256, 512, 1024, 2048]
+GEN_TOKENS = [128, 256, 512]
+NUM_REQUESTS = 20
+OUTPUT_FILE = "results/profile_export_25w_bonsai1.7b.jsonl"
 ```
 
-**Output format** (one JSON per line):
+**Output format** (one JSON object per line):
 ```json
 {
   "prompt_tokens": 256,
   "output_tokens": 128,
   "request_start_ns": 1782399126636528300,
-  "request_end_ns":   1782399144058580233,
+  "request_end_ns": 1782399144058580233,
   "latency_s": 4.995,
   "target_prompt_tokens": 256,
   "target_gen_tokens": 128,
@@ -233,55 +237,53 @@ Arguments (edit top of file):
 }
 ```
 
+### `compare_modes.py`
+
+Reads the three mode-specific JSONL files and builds the comparison figures used for the 15W vs 25W vs MAXN report.
+
+```bash
+python3 compare_modes.py
+```
+
+Outputs:
+- `results/compare_tokps.png`
+- `results/compare_tokj.png`
+- `results/compare_avg_summary.png`
+- `results/compare_tokps_vs_prompt.png`
+
 ### `calc_tokj.py`
 
-Calculates `tok/J` by aligning `tegrastats` power readings to each request's time window.
+Calculates `tok/J` by aligning `tegrastats` power samples to each request window.
 
+```bash
+python3 calc_tokj.py --mode 25W
+python3 calc_tokj.py --all
 ```
-Inputs:
-  tegrastats_*.txt         — power log from tegrastats
-  profile_export_*.jsonl   — request timing from benchmark.py
 
-Output:
-  Printed summary table: prompt × gen → tok/s, tok/J, avg power
-```
+Outputs:
+- printed summary tables for each mode
+- `results/tokj_25w.csv`, `results/tokj_maxn.csv`, `results/tokj_all_modes.csv`
+- `results/tokj_comparison.png`, `results/tokj_avg_power.png`
 
 **Formula used:**
 
-```
+```text
 Energy(J) = Σ (instantaneous_power_W × interval_s)
-            for all tegrastats samples within request window
+            for all tegrastats samples that fall inside the request window
 
 tok/J = output_tokens / Energy(J)
 ```
 
 ---
 
-## Results (25W — Bonsai-1.7B Q1_0)
+## Results and Current Artifacts
 
-> Jetson Orin Nano Super 8GB · 25W mode · clocks locked with `jetson_clocks`  
-> 20 requests per combo · p50 latency reported · `VDD_CPU_GPU_CV` power rail
+> Jetson Orin Nano Super 8GB · 15W / 25W / MAXN_SUPER · clocks locked with `jetson_clocks`  
+> The charts below are generated directly from the JSONL benchmark outputs by the scripts in this repository.
 
-| Prompt | Gen | Latency (s) | tok/s | tok/J | Avg Power (W) |
-|--------|-----|------------|-------|-------|--------------|
-| 256 | 128 | 5.00 | 25.61 | 19.54 | 1.39 |
-| 256 | 256 | 9.90 | 25.86 | 14.24 | 1.61 |
-| 256 | 512 | 19.77 | 25.90 | 19.76 | 1.45 |
-| 512 | 128 | 5.22 | 24.52 | 6.49 | 3.77 |
-| 512 | 256 | 10.15 | 25.24 | 6.67 | 3.91 |
-| 512 | 512 | 20.09 | 25.48 | 6.78 | 3.77 |
-| 1024 | 128 | 5.63 | 22.72 | 5.75 | 3.93 |
-| 1024 | 256 | 10.65 | 24.03 | 6.27 | 3.82 |
-| 1024 | 512 | 20.80 | 24.61 | 6.52 | 3.85 |
-| 2048 | 128 | 6.49 | 19.72 | 4.80 | 4.05 |
-| 2048 | 256 | 11.71 | 21.86 | 5.52 | 3.94 |
-| 2048 | 512 | 22.28 | 22.98 | 5.94 | 4.10 |
+### 3-Mode Comparison Charts
 
-![Benchmark Results](results/bonsai_1.7b_25w_benchmark.png)
-
-### 3-Mode Comparison (15W vs 25W vs MAXN_SUPER)
-
-The comparison below is generated from [results/compare_tokps.png](results/compare_tokps.png), [results/compare_tokj.png](results/compare_tokj.png), [results/compare_avg_summary.png](results/compare_avg_summary.png), and [results/compare_tokps_vs_prompt.png](results/compare_tokps_vs_prompt.png) by the comparison script.
+These figures are produced by `compare_modes.py` from the three profile exports in `results/`.
 
 ![Throughput comparison](results/compare_tokps.png)
 
@@ -291,66 +293,29 @@ The comparison below is generated from [results/compare_tokps.png](results/compa
 
 ![Throughput vs prompt length](results/compare_tokps_vs_prompt.png)
 
-#### Throughput (tok/s)
+### tok/J Analysis Charts
 
-| Combo | 15W tok/s | 25W tok/s | MAXN tok/s | 25v15 | MAXv25 |
-|---|---:|---:|---:|---:|---:|
-| pp256+tg128 | 17.43 | 25.61 | 24.06 | +47.0% | -6.1% |
-| pp256+tg256 | 17.66 | 25.86 | 24.37 | +46.4% | -5.8% |
-| pp256+tg512 | 17.69 | 25.90 | 24.36 | +46.4% | -5.9% |
-| pp512+tg128 | 16.73 | 24.52 | 23.07 | +46.6% | -5.9% |
-| pp512+tg256 | 17.21 | 25.24 | 23.71 | +46.6% | -6.1% |
-| pp512+tg512 | 17.37 | 25.48 | 23.90 | +46.7% | -6.2% |
-| pp1024+tg128 | 15.50 | 22.72 | 21.41 | +46.6% | -5.8% |
-| pp1024+tg256 | 16.38 | 24.03 | 22.56 | +46.7% | -6.1% |
-| pp1024+tg512 | 16.77 | 24.61 | 23.04 | +46.7% | -6.4% |
-| pp2048+tg128 | 13.43 | 19.72 | 18.58 | +46.8% | -5.8% |
-| pp2048+tg256 | 14.89 | 21.86 | 20.48 | +46.8% | -6.3% |
-| pp2048+tg512 | 15.66 | 22.98 | 21.53 | +46.7% | -6.3% |
-| **Average** |  |  |  | **+46.7%** | **-6.1%** |
+These figures are generated by `calc_tokj.py` using the `tegrastats` logs and the benchmark JSONL files.
 
-#### Latency (seconds)
+![tok/J comparison chart](results/tokj_comparison.png)
 
-| Combo | 15W p50 | 15W p95 | 25W p50 | 25W p95 | MAXN p50 | MAXN p95 |
-|---|---:|---:|---:|---:|---:|---:|
-| pp256+tg128 | 7.345 | 7.350 | 4.997 | 5.023 | 5.320 | 5.323 |
-| pp256+tg256 | 14.493 | 14.496 | 9.898 | 9.945 | 10.503 | 10.506 |
-| pp256+tg512 | 28.948 | 28.957 | 19.770 | 19.787 | 21.015 | 21.023 |
-| pp512+tg128 | 7.651 | 7.654 | 5.220 | 5.227 | 5.547 | 5.550 |
-| pp512+tg256 | 14.875 | 14.880 | 10.144 | 10.173 | 10.799 | 10.805 |
-| pp512+tg512 | 29.470 | 29.478 | 20.090 | 20.114 | 21.424 | 21.430 |
-| pp1024+tg128 | 8.260 | 8.270 | 5.634 | 5.636 | 5.979 | 5.987 |
-| pp1024+tg256 | 15.627 | 15.636 | 10.654 | 10.660 | 11.347 | 11.352 |
-| pp1024+tg512 | 30.523 | 30.531 | 20.802 | 20.811 | 22.221 | 22.232 |
-| pp2048+tg128 | 9.531 | 9.557 | 6.491 | 6.507 | 6.891 | 6.905 |
-| pp2048+tg256 | 17.189 | 17.216 | 11.713 | 11.726 | 12.500 | 12.504 |
-| pp2048+tg512 | 32.687 | 32.710 | 22.277 | 22.300 | 23.776 | 23.872 |
+![Average GPU power chart](results/tokj_avg_power.png)
 
-#### Energy efficiency (tok/J)
+### Current Summary (from the latest run)
 
-| Combo | 15W tok/J | 25W tok/J | MAXN tok/J | Best |
-|---|---:|---:|---:|---|
-| pp256+tg128 | 6.963 | 6.831 | 6.015 | 15W |
-| pp256+tg256 | 7.057 | 6.897 | 6.093 | 15W |
-| pp256+tg512 | 7.066 | 6.906 | 6.091 | 15W |
-| pp512+tg128 | 6.684 | 6.539 | 5.769 | 15W |
-| pp512+tg256 | 6.876 | 6.730 | 5.926 | 15W |
-| pp512+tg512 | 6.941 | 6.796 | 5.975 | 15W |
-| pp1024+tg128 | 6.191 | 6.059 | 5.352 | 15W |
-| pp1024+tg256 | 6.545 | 6.408 | 5.640 | 15W |
-| pp1024+tg512 | 6.702 | 6.563 | 5.760 | 15W |
-| pp2048+tg128 | 5.365 | 5.259 | 4.644 | 15W |
-| pp2048+tg256 | 5.950 | 5.828 | 5.120 | 15W |
-| pp2048+tg512 | 6.258 | 6.129 | 5.384 | 15W |
-| **Average** | **6.550** | **6.412** | **5.647** |  |
+- 25W average throughput: 24.04 tok/s
+- 25W average power: 3.218 W
+- 25W average tok/J: 7.472
+- MAXN average throughput: 22.59 tok/s
+- MAXN average power: 2.468 W
+- MAXN average tok/J: 9.152
+- 25W vs 15W: +46.7% tok/s, only -2.1% tok/J
+- MAXN vs 25W: -6.1% tok/s, -11.9% tok/J
 
-#### Sweet-spot summary
-
-- Avg tok/s: 15W = 16.39, 25W = 24.04, MAXN = 22.59
-- Avg tok/J: 15W = 6.550, 25W = 6.412, MAXN = 5.647
-- 25W vs 15W: +46.7% tok/s and -2.1% tok/J
-- MAXN vs 25W: -6.1% tok/s and -11.9% tok/J
-- Conclusion: 25W is the sweet spot for this benchmark because it is much faster than 15W while keeping efficiency close to the best observed value.
+The current CSV outputs are also checked into the repo:
+- [results/tokj_all_modes.csv](results/tokj_all_modes.csv)
+- [results/tokj_25w.csv](results/tokj_25w.csv)
+- [results/tokj_maxn.csv](results/tokj_maxn.csv)
 
 ---
 
