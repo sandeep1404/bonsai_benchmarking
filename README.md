@@ -180,23 +180,27 @@ sudo tegrastats --interval 500 \
 tail -f ~/results/tegrastats_25w_bonsai1.7b.txt
 ```
 
-### Step 4 — Run Full Benchmark Sweep (Terminal 3)
+### Step 4 — Run the Benchmark for One Power Mode (Terminal 3)
 
 ```bash
 python3 benchmark.py
 ```
 
-This runs all **12 combinations** (4 prompt lengths × 3 gen lengths) × 20 requests = **240 total requests**, saving per-request timing to `results/profile_export_25w_bonsai1.7b.jsonl`.
+Edit the top of `benchmark.py` to set the desired mode tag (for example `15w_bonsai1.7b`, `25w_bonsai1.7b`, or `maxn_bonsai1.7b`) before each run. This executes all **12 combinations** (4 prompt lengths × 3 gen lengths) × 20 requests = **240 total requests** and saves a separate JSONL file for that power mode.
 
-### Step 5 — Stop Power Logging & Calculate tok/J
+### Step 5 — Repeat for Each Power Mode and Compare
 
 ```bash
-# Stop tegrastats
-sudo kill $(pgrep tegrastats)
+# Repeat Step 4 for 15W, 25W, and MAXN_SUPER
+# Each run writes its own JSONL file:
+#   results/profile_export_15w_bonsai1.7b.jsonl
+#   results/profile_export_25w_bonsai1.7b.jsonl
+#   results/profile_export_maxn_bonsai1.7b.jsonl
 
-# Calculate tok/J from the two data files
-python3 calc_tokj.py
+python3 compare_modes.py
 ```
+
+`compare_modes.py` does not run the benchmark itself. It reads the three JSONL files, compares the same prompt/gen combinations across the three power modes, and writes the summary charts and tables to `results/`.
 
 ---
 
