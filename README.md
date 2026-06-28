@@ -266,6 +266,79 @@ tok/J = output_tokens / Energy(J)
 
 ![Benchmark Results](results/bonsai_1.7b_25w_benchmark.png)
 
+### 3-Mode Comparison (15W vs 25W vs MAXN_SUPER)
+
+The comparison below is generated from [results/compare_tokps.png](results/compare_tokps.png), [results/compare_tokj.png](results/compare_tokj.png), [results/compare_avg_summary.png](results/compare_avg_summary.png), and [results/compare_tokps_vs_prompt.png](results/compare_tokps_vs_prompt.png) by the comparison script.
+
+![Throughput comparison](results/compare_tokps.png)
+
+![Energy efficiency comparison](results/compare_tokj.png)
+
+![Average throughput summary](results/compare_avg_summary.png)
+
+![Throughput vs prompt length](results/compare_tokps_vs_prompt.png)
+
+#### Throughput (tok/s)
+
+| Combo | 15W tok/s | 25W tok/s | MAXN tok/s | 25v15 | MAXv25 |
+|---|---:|---:|---:|---:|---:|
+| pp256+tg128 | 17.43 | 25.61 | 24.06 | +47.0% | -6.1% |
+| pp256+tg256 | 17.66 | 25.86 | 24.37 | +46.4% | -5.8% |
+| pp256+tg512 | 17.69 | 25.90 | 24.36 | +46.4% | -5.9% |
+| pp512+tg128 | 16.73 | 24.52 | 23.07 | +46.6% | -5.9% |
+| pp512+tg256 | 17.21 | 25.24 | 23.71 | +46.6% | -6.1% |
+| pp512+tg512 | 17.37 | 25.48 | 23.90 | +46.7% | -6.2% |
+| pp1024+tg128 | 15.50 | 22.72 | 21.41 | +46.6% | -5.8% |
+| pp1024+tg256 | 16.38 | 24.03 | 22.56 | +46.7% | -6.1% |
+| pp1024+tg512 | 16.77 | 24.61 | 23.04 | +46.7% | -6.4% |
+| pp2048+tg128 | 13.43 | 19.72 | 18.58 | +46.8% | -5.8% |
+| pp2048+tg256 | 14.89 | 21.86 | 20.48 | +46.8% | -6.3% |
+| pp2048+tg512 | 15.66 | 22.98 | 21.53 | +46.7% | -6.3% |
+| **Average** |  |  |  | **+46.7%** | **-6.1%** |
+
+#### Latency (seconds)
+
+| Combo | 15W p50 | 15W p95 | 25W p50 | 25W p95 | MAXN p50 | MAXN p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| pp256+tg128 | 7.345 | 7.350 | 4.997 | 5.023 | 5.320 | 5.323 |
+| pp256+tg256 | 14.493 | 14.496 | 9.898 | 9.945 | 10.503 | 10.506 |
+| pp256+tg512 | 28.948 | 28.957 | 19.770 | 19.787 | 21.015 | 21.023 |
+| pp512+tg128 | 7.651 | 7.654 | 5.220 | 5.227 | 5.547 | 5.550 |
+| pp512+tg256 | 14.875 | 14.880 | 10.144 | 10.173 | 10.799 | 10.805 |
+| pp512+tg512 | 29.470 | 29.478 | 20.090 | 20.114 | 21.424 | 21.430 |
+| pp1024+tg128 | 8.260 | 8.270 | 5.634 | 5.636 | 5.979 | 5.987 |
+| pp1024+tg256 | 15.627 | 15.636 | 10.654 | 10.660 | 11.347 | 11.352 |
+| pp1024+tg512 | 30.523 | 30.531 | 20.802 | 20.811 | 22.221 | 22.232 |
+| pp2048+tg128 | 9.531 | 9.557 | 6.491 | 6.507 | 6.891 | 6.905 |
+| pp2048+tg256 | 17.189 | 17.216 | 11.713 | 11.726 | 12.500 | 12.504 |
+| pp2048+tg512 | 32.687 | 32.710 | 22.277 | 22.300 | 23.776 | 23.872 |
+
+#### Energy efficiency (tok/J)
+
+| Combo | 15W tok/J | 25W tok/J | MAXN tok/J | Best |
+|---|---:|---:|---:|---|
+| pp256+tg128 | 6.963 | 6.831 | 6.015 | 15W |
+| pp256+tg256 | 7.057 | 6.897 | 6.093 | 15W |
+| pp256+tg512 | 7.066 | 6.906 | 6.091 | 15W |
+| pp512+tg128 | 6.684 | 6.539 | 5.769 | 15W |
+| pp512+tg256 | 6.876 | 6.730 | 5.926 | 15W |
+| pp512+tg512 | 6.941 | 6.796 | 5.975 | 15W |
+| pp1024+tg128 | 6.191 | 6.059 | 5.352 | 15W |
+| pp1024+tg256 | 6.545 | 6.408 | 5.640 | 15W |
+| pp1024+tg512 | 6.702 | 6.563 | 5.760 | 15W |
+| pp2048+tg128 | 5.365 | 5.259 | 4.644 | 15W |
+| pp2048+tg256 | 5.950 | 5.828 | 5.120 | 15W |
+| pp2048+tg512 | 6.258 | 6.129 | 5.384 | 15W |
+| **Average** | **6.550** | **6.412** | **5.647** |  |
+
+#### Sweet-spot summary
+
+- Avg tok/s: 15W = 16.39, 25W = 24.04, MAXN = 22.59
+- Avg tok/J: 15W = 6.550, 25W = 6.412, MAXN = 5.647
+- 25W vs 15W: +46.7% tok/s and -2.1% tok/J
+- MAXN vs 25W: -6.1% tok/s and -11.9% tok/J
+- Conclusion: 25W is the sweet spot for this benchmark because it is much faster than 15W while keeping efficiency close to the best observed value.
+
 ---
 
 ## Key Findings
