@@ -40,14 +40,23 @@
 .
 ├── README.md                              # This file
 ├── benchmark.py                           # Main benchmark script (llama-server + requests)
-├── calc_tokj.py                           # tok/J calculator from tegrastats + jsonl
-├── bonsai_benchmark_formulas.md           # All metric formulas with examples (Obsidian notes)
+├── compare_modes.py                       # Comparison script for 15W / 25W / MAXN_SUPER
+├── bonsai_benchmark_report.md             # Benchmark report and notes
 ├── results/
-│   ├── profile_export_25w_bonsai1.7b.jsonl   # 240 requests × timing data at 25W
-│   ├── tegrastats_25w_bonsai1.7b.txt          # Real power samples at 500ms intervals
-│   └── bonsai_1.7b_25w_benchmark.png          # Auto-generated results chart
-└── docs/
-    └── tegrastats_field_guide.md          # How to read every tegrastats field
+│   ├── profile_export_15w_bonsai1.7b.jsonl # Timing data for 15W mode
+│   ├── profile_export_25w_bonsai1.7b.jsonl # Timing data for 25W mode
+│   ├── profile_export_maxn_bonsai1.7b.jsonl # Timing data for MAXN_SUPER mode
+│   ├── tegrastats_25w_bonsai1.7b.txt       # VDD_CPU_GPU_CV power log at 25W
+│   ├── tegrastats_maxn_bonsai1.7b.txt      # VDD_CPU_GPU_CV power log at MAXN_SUPER
+│   ├── bonsai_1.7b_25w_benchmark.png       # Main benchmark results chart
+│   ├── compare_tokps.png                  # Throughput comparison chart
+│   ├── compare_tokj.png                   # Energy efficiency comparison chart
+│   ├── compare_avg_summary.png            # Average throughput summary chart
+│   ├── compare_tokps_vs_prompt.png        # tok/s vs prompt length chart
+│   ├── compare_tokps.html                 # HTML comparison chart for throughput
+│   ├── compare_tokj.html                  # HTML comparison chart for energy efficiency
+│   ├── compare_avg_summary.html           # HTML comparison summary chart
+│   └── compare_tokps_vs_prompt.html       # HTML comparison chart for prompt length
 ```
 
 ---

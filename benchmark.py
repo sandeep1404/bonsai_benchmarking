@@ -4,8 +4,12 @@ from pathlib import Path
 SERVER = "http://localhost:8080"
 PROMPT_TOKENS = [256, 512, 1024, 2048]
 GEN_TOKENS    = [128, 256, 512]
+
+# NEW (replace with this):
 NUM_REQUESTS  = 20
-OUTPUT_FILE   = Path("/results/profile_export_25w_bonsai1.7b.jsonl").expanduser()
+TAG = "maxn_bonsai1.7b"   # ← ONLY change this between runs
+BASE_DIR      = Path(__file__).resolve().parent
+OUTPUT_FILE   = BASE_DIR / "results" / f"profile_export_{TAG}.jsonl"
 
 def make_prompt(n_tokens):
     # Generate a synthetic prompt of approximately n_tokens
